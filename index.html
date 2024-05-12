@@ -1,0 +1,848 @@
+<html>
+ <head>
+ <title>Location Shaping</title>
+ <meta charset="utf-8">
+ <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+ <script>
+  const legal_ranks = new Set(['s', 'a', 'b', 'c', 'd', 'e'].map(function(x) { return x.toUpperCase() }));
+  const legal_elements = new Set([
+    'fire', 'water', 'ice', 'light', 'dark', 'earth', 'wind', 'lightning']);
+
+  const element_backgrounds = new Map([
+    ['fire', 'white'],
+    ['water', 'white'],
+    ['ice', 'black'],
+    ['light', 'black'],
+    ['dark', 'white'],
+    ['earth', 'white'],
+    ['wind', 'white'],
+    ['lightning', 'black']
+  ]);
+
+  const color_by_element = new Map([
+    ['fire', 'red'],
+    ['water', 'blue'],
+    ['ice', 'cyan'],
+    ['light', 'antiquewhite'],
+    ['lightning', 'yellow'],
+    ['dark', 'blueviolet'],
+    ['earth', 'brown'],
+    ['wind', 'green'],
+  ]);
+
+  const map_width_in_squares = 23;
+  const map_height_in_squares = 27;
+  const highlight_color = 'rgb( 200 200 200 / 60%)';
+  const highlight_outline = 'black';
+  const ex_color = 'red';
+
+  function name_tags(entry) {
+    const pairs = [
+      ['Recipe', 'recipe'],
+      ['Fragment', 'fragment'],
+    ];
+    pairs.forEach(function(pair) {
+      let needle = pair[0];
+      let tag = pair[1];
+      if (entry.item.includes(needle)) {
+        entry.tags.add(tag);
+      }
+    });
+  }
+
+  function MakeEntry(x, y, rank, element, item, tags, notes) {
+    rank = rank.toUpperCase();
+    element = element.toLowerCase();
+    if (tags === null || tags === undefined) { tags = ""; }
+    if (notes === null || notes === undefined) { notes = ""; }
+    console.assert(x >= 0 && x <= 22, "X out of bounds");
+    console.assert(y >= 0 && y <= 26, "Y out of bounds");
+    console.assert(legal_ranks.has(rank), "Invalid Rank (" + x + ", " + y + ")");
+    console.assert(legal_elements.has(element), "Invalid Element (" + x + ", " + y +")");
+    let ret = {'x': x, 'y': y, 'rank': rank, 'element': element,
+               'item': item , 'tags': new Set(tags.split(',')), 'notes': notes};
+    name_tags(ret);
+    ret.tags.delete("");
+    return ret;
+  }
+
+  const data = [
+    MakeEntry(0, 7, 'C', 'ice', "Winter's Feather"),
+    MakeEntry(0, 8, 'C', 'lightning', "Dewdrop Bottle"),
+    MakeEntry(1, 6, 'c', 'ice', 'Elixir'),
+    MakeEntry(1, 7, 'c', 'ice', 'Glacial Stone'),
+    MakeEntry(1, 8, 'c', 'ice', 'Power Potion'),
+    MakeEntry(2, 5, 'c', 'ice', 'Star Opal'),
+    MakeEntry(2, 6, 'c', 'ice', 'Poor Quality Iron Ore'),
+    MakeEntry(2, 7, 'c', 'lightning', 'Raven Feather'),
+    MakeEntry(2, 8, 'c', 'lightning', 'Dark Robe'),
+    MakeEntry(3, 8, 'c', 'lightning', 'Max Tonic'),
+    MakeEntry(3, 6, 'c', 'fire', 'Blaze Stone'),
+    MakeEntry(3, 5, 'c', 'fire', 'Light Protection Medicine'),
+    MakeEntry(3, 4, 'c', 'fire', 'Dewdrop Flask'),
+    MakeEntry(4, 4, 'c', 'earth', 'Dewdrop Bottle'),
+    MakeEntry(4, 5, 'c', 'fire', 'Poison Stinger'),
+    MakeEntry(4, 6, 'c', 'fire', 'Blaze Stone'),
+    MakeEntry(4, 7, 'c', 'fire', 'Dewdrop Flask'),
+    MakeEntry(4, 8, 'c', 'lightning', 'Rigid Joint'),
+    MakeEntry(4, 9, 'c', 'lightning', 'Hidden Village 5', 'location'),
+    MakeEntry(4, 10, 'c', 'lightning', 'Dewdrop Bottle'),
+    MakeEntry(4, 11, 'c', 'lightning', 'Bravery Fragment DE'),
+    MakeEntry(5, 11, 'c', 'fire', 'Blaze Stone'),
+    MakeEntry(5, 10, 'c', 'fire', 'Small Chunk of Magic'),
+    MakeEntry(5, 9, 'c', 'fire', 'Wizard Robe'),
+    MakeEntry(5, 8, 'c', 'fire', 'High Potion'),
+    MakeEntry(5, 7, 'c', 'fire', 'Pebble'),
+    MakeEntry(5, 6, 'c', 'fire', 'Pyrite'),
+    MakeEntry(5, 5, 'c', 'earth', 'Mandragora'),
+    MakeEntry(5, 4, 'c', 'earth', 'Mid Tonic'), 
+    MakeEntry(6, 2, 'c', 'dark', 'Heart Supplement'),
+    MakeEntry(6, 3, 'c', 'dark', 'Mental Potion'),
+    MakeEntry(6, 4, 'c', 'dark', 'Sharp Claw'),
+    MakeEntry(6, 5, 'c', 'earth', 'Panacea Herb'),
+    MakeEntry(6, 6, 'c', 'fire', 'Poor Quality Iron Ore'),
+    MakeEntry(6, 7, 'c', 'fire', 'Bravery Fragment DE'),
+    MakeEntry(6, 8, 'c', 'fire', "Sorcerer's Robe"),
+    MakeEntry(6, 9, 'c', 'fire', 'Fire Stone'),
+    MakeEntry(6, 10, 'c', 'fire', "Cherub's Feathers"),
+    MakeEntry(6, 11, 'c', 'fire', 'Pyrite'),
+    MakeEntry(7, 11, 'c', 'fire', 'High Ether'),
+    MakeEntry(7, 10, 'c', 'fire', "Autumn's Feather"),
+    MakeEntry(7, 9, 'c', 'fire', 'Bulletproof Vest'),
+    MakeEntry(7, 7, 'c', 'fire', 'Hopeful Fragment DE'),
+    MakeEntry(7, 6, 'c', 'fire', 'Safety Recipe'),
+    MakeEntry(7, 5, 'c', 'earth', 'Panacea Sprout'),
+    MakeEntry(7, 4, 'c', 'dark', 'Night Blossom'),
+    MakeEntry(7, 3, 'c', 'dark', 'Panacea'),
+    MakeEntry(7, 2, 'c', 'dark', 'Ectoplasm'),
+    MakeEntry(7, 1, 'c', 'dark', 'Ultra Potion'),
+    MakeEntry(8, 1, 'c', 'dark', "King's Crown"),
+    MakeEntry(8, 2, 'c', 'dark', 'Dark Protection Medicine'),
+    MakeEntry(8, 3, 'c', 'dark', 'Elixir'),
+    MakeEntry(8, 4, 'c', 'dark', 'Dark Stone'),
+    MakeEntry(8, 5, 'c', 'earth', 'Decent Fur'),
+    MakeEntry(8, 6, 'c', 'fire', 'High Ether'),
+    MakeEntry(8, 7, 'c', 'fire', 'Thunder Citrine'),
+    MakeEntry(8, 8, 'c', 'fire', 'Protective Fragment DE'),
+    MakeEntry(8, 9, 'c', 'fire', 'Dewdrop Flask'),
+    MakeEntry(8, 10, 'c', 'fire', 'Mad Soldier Medicine'),
+    MakeEntry(8, 11, 'c', 'fire', 'Blaze Stone'),
+    MakeEntry(9, 11, 'c', 'fire', 'Trust Fragment DE'),
+    MakeEntry(9, 12, 'c', 'earth', 'Withered Flower'),
+    MakeEntry(9, 13, 'c', 'earth', 'Pyrite'),
+    MakeEntry(9, 14, 'c', 'earth', 'Wild Strawberry'),
+    MakeEntry(9, 15, 'c', 'earth', 'Max Tonic'),
+    MakeEntry(9, 16, 'c', 'earth', 'Light Protection Medicine'),
+    MakeEntry(9, 17, 'c', 'earth', 'Herb Sprout'),
+    MakeEntry(9, 18, 'c', 'earth', 'High Ether'),
+    MakeEntry(9, 19, 'c', 'earth', 'Beautiful Flower'),
+    MakeEntry(9, 20, 'c', 'earth', 'Rumble Stone'),
+    MakeEntry(10, 20, 'c', 'earth', 'Max Tonic'),
+    MakeEntry(10, 21, 'c', 'wind', 'Panacea Herb'),
+    MakeEntry(10, 22, 'c', 'wind', 'Wisdom Fragment DE'),
+    MakeEntry(10, 23, 'c', 'wind', 'High Potion'),
+    MakeEntry(10, 24, 'c', 'wind', 'Gale Stone'),
+    MakeEntry(10, 25, 'c', 'ice', 'Dangerous Synthesis Recipe 4'),
+    MakeEntry(11, 25, 'c', 'wind', 'Hopeful Fragment DE'),
+    MakeEntry(11, 24, 'd', 'wind', 'Leather Guard'),
+    MakeEntry(11, 23, 'd', 'wind', 'Flare Ruby'),
+    MakeEntry(11, 22, 'd', 'wind', 'Mage Robe'),
+    MakeEntry(11, 21, 'd', 'wind', 'Elixir'),
+    MakeEntry(11, 20, 'd', 'dark', 'Bulletproof Vest'),
+    MakeEntry(11, 19, 'd', 'dark', 'Jacket Recipe'),
+    MakeEntry(11, 18, 'd', 'dark', 'Hidden Village 4', 'location'),
+    MakeEntry(11, 17, 'd', 'earth', 'High Potion'),
+    MakeEntry(11, 15, 'd', 'light', 'Bronze Ring'),
+    MakeEntry(10, 19, 'd', 'dark', 'Max Tonic'),
+    MakeEntry(10, 18, 'd', 'earth', 'Bronze Ring'),
+    MakeEntry(10, 17, 'd', 'earth', "Cherub's Feathers"),
+    MakeEntry(10, 16, 'd', 'earth', 'Broken Claw'),
+    MakeEntry(10, 15, 'd', 'earth', 'Earth'),
+    MakeEntry(10, 13, 'd', 'light', 'Dewdrop Flask'),
+    MakeEntry(10, 12, 'd', 'earth', 'Sparse Moss'),
+    MakeEntry(10, 11, 'c', 'earth', 'Magic Potion'),
+    MakeEntry(10, 10, 'c', 'earth', 'Earth Stone'),
+    MakeEntry(10, 9, 'c', 'earth', 'Trust Fragment DE'),
+    MakeEntry(10, 8, 'c', 'fire', 'Dewdrop Flask'),
+    MakeEntry(10, 7, 'c', 'fire', 'Blaze Stone'),
+    MakeEntry(10, 6, 'c', 'earth', 'High Quality Gear'),
+    MakeEntry(11, 6, 'c', 'light', 'Panacea'),
+    MakeEntry(11, 7, 'c', 'earth', 'Rumble Stone'),
+    MakeEntry(11, 8, 'd', 'earth', 'Heavy Leather Armor'),
+    MakeEntry(11, 9, 'd', 'earth', 'Sparse Moss'),
+    MakeEntry(11, 10, 'd', 'water', "Summer's Feather"),
+    MakeEntry(11, 11, 'd', 'water', 'Bronze Mail'),
+    MakeEntry(11, 12, 'd', 'light', 'Dewdrop Flask'),
+    MakeEntry(11, 13, 'e', 'light', 'High Potion'),
+    MakeEntry(9, 10, 'c', 'fire', 'High Ether'),
+    MakeEntry(9, 9, 'c', 'fire', 'High Powered Circuit'),
+    MakeEntry(9, 8, 'c', 'fire', 'Blaze Stone'),
+    MakeEntry(9, 7, 'c', 'fire', 'Poor Quality Iron Ore'),
+    MakeEntry(9, 6, 'c', 'fire', 'Vital Potion'),
+    MakeEntry(9, 5, 'c', 'earth', 'Pretty Moss'),
+    MakeEntry(9, 4, 'c', 'light', 'Sun Blossom'),
+    MakeEntry(12, 7, 'd', 'wind', "Spring's Feather"),
+    MakeEntry(12, 8, 'd', 'water', 'Wild Strawberry'),
+    MakeEntry(12, 9, 'e', 'water', 'Light Feather'),
+    MakeEntry(12, 10, 'e', 'wind', 'High Tonic'),
+    MakeEntry(12, 12, 'e', 'water', 'Weakened Special Fiber'),
+    MakeEntry(12, 17, 'd', 'dark', 'Beetle Eyes'),
+    MakeEntry(12, 18, 'd', 'dark', 'Ether'),
+    MakeEntry(12, 19, 'd', 'dark', 'Night Stone'),
+    MakeEntry(12, 20, 'd', 'dark', 'Max Tonic'),
+    MakeEntry(12, 21, 'd', 'dark', 'Enchanted Robe'),
+    MakeEntry(12, 22, 'd', 'wind', 'Wind Stone'),
+    MakeEntry(12, 23, 'd', 'wind', 'Nelly', 'fairy,requires map', 'Requires Treasure Map A'),
+    MakeEntry(12, 24, 'd', 'wind', 'Leather Armor'),
+    MakeEntry(12, 25, 'c', 'wind', 'Gale Stone'),
+    MakeEntry(13, 25, 'c', 'water', 'Dragon Claw'),
+    MakeEntry(13, 24, 'c', 'water', 'Protective Fragment DE'),
+    MakeEntry(13, 23, 'c', 'water', 'Sparse Moss'),
+    MakeEntry(13, 22, 'c', 'water', 'Ultra Potion'),
+    MakeEntry(13, 21, 'c', 'water', 'Wild Strawberry'),
+    MakeEntry(13, 20, 'c', 'dark', 'Poor Quality Iron Ore'),
+    MakeEntry(13, 19, 'd', 'dark', 'Beetle Crescent'),
+    MakeEntry(13, 18, 'd', 'dark', 'Protective Fragment EG'),
+    MakeEntry(13, 17, 'd', 'water', 'Water Stone'),
+    MakeEntry(13, 16, 'd', 'light', 'Shimmering Stone'),
+    MakeEntry(13, 15, 'd', 'light', 'Lower Power Engine'),
+    MakeEntry(13, 14, 'e', 'water', 'Wisdom Fragment EE'),
+    MakeEntry(13, 13, 'e', 'water', 'High Potion'),
+    MakeEntry(13, 12, 'e', 'wind', 'Herb Sprout'),
+    MakeEntry(13, 11, 'e', 'wind', 'White Obi'),
+    MakeEntry(13, 10, 'e', 'wind', 'Cracked Helmet'),
+    MakeEntry(13, 9, 'e', 'wind', 'Pebble'),
+    MakeEntry(13, 8, 'e', 'wind', 'Ice Snake Skin'),
+    MakeEntry(13, 7, 'd', 'water', 'Ultra Potion'),
+    MakeEntry(13, 6, 'c', 'wind', 'Wind Stone'),
+    MakeEntry(13, 5, 'c', 'light', 'Bright Shimmering Stone'),
+    MakeEntry(13, 4, 'c', 'wind', 'Unknown Shaggy Object'),
+    MakeEntry(12, 13, 'e', 'light', 'Ether'),
+    MakeEntry(10, 1, 'b', 'wind', 'Mysterious Sponge'),
+    MakeEntry(14, 4, 'c', 'lightning', 'Lightning Stone'),
+    MakeEntry(14, 5, 'd', 'wind', 'Ultra Potion'),
+    MakeEntry(14, 6, 'd', 'water', 'Body Supplement'),
+    MakeEntry(14, 7, 'e', 'wind', "Cherub's Feathers"),
+    MakeEntry(14, 8, 'e', 'wind', 'Mage Robe'),
+    MakeEntry(14, 9, 'e', 'wind', 'Hidden Village 2', 'location'),
+    MakeEntry(14, 10, 'e', 'wind', 'Leather Belt'),
+    MakeEntry(14, 11, 'e', 'wind', 'Smelly Fur'),
+    MakeEntry(14, 12, 'e', 'wind', 'Elixir'),
+    MakeEntry(14, 13, 'e', 'wind', 'Mandragora'),
+    MakeEntry(14, 14, 'e', 'wind', 'Light Feather'),
+    MakeEntry(14, 15, 'd', 'water', 'Pebble'),
+    MakeEntry(14, 16, 'd', 'water', 'Aqua Sapphire'),
+    MakeEntry(14, 17, 'c', 'water', 'Ninja Garment'),
+    MakeEntry(14, 18, 'c', 'water', 'Elixir'),
+    MakeEntry(14, 19, 'c', 'dark', 'Moon Blossom'),
+    MakeEntry(14, 20, 'c', 'water', 'Pretty Moss'),
+    MakeEntry(15, 18, 'c', 'water', 'Bronze Ring'),
+    MakeEntry(15, 17, 'c', 'water', 'Maelstrom Stone'),
+    MakeEntry(15, 16, 'd', 'water', 'Heart Supplement'),
+    MakeEntry(15, 15, 'd', 'wind', 'Dirty Clothes'),
+    MakeEntry(15, 14, 'e', 'wind', 'Panacea Sprout'),
+    MakeEntry(15, 13, 'e', 'wind', 'Panacea'),
+    MakeEntry(15, 12, 'e', 'wind', 'Insect Stinger'),
+    MakeEntry(15, 11, 'e', 'wind', 'Heart Supplement'),
+    MakeEntry(15, 10, 'e', 'wind', 'Tattered Wing'),
+    MakeEntry(15, 9, 'e', 'wind', 'Body Supplement'),
+    MakeEntry(15, 8, 'e', 'wind', 'Steel Accessory Recipe'),
+    MakeEntry(15, 7, 'e', 'wind', 'Scuffed Scale'),
+    MakeEntry(15, 6, 'e', 'wind', 'Ether'),
+    MakeEntry(15, 5, 'd', 'water', 'Broken Fang'),
+    MakeEntry(15, 4, 'c', 'wind', "Cherub's Feathers"),
+    MakeEntry(16, 4, 'c', 'light', 'Wisdom Fragment DE'),
+    MakeEntry(16, 5, 'd', 'wind', 'Hidden Village 3', 'location'),
+    MakeEntry(16, 6, 'e', 'wind', 'Dirty Feather'),
+    MakeEntry(16, 7, 'e', 'wind', 'Leather Guard'),
+    MakeEntry(16, 8, 'e', 'wind', 'Beautiful Flower'),
+    MakeEntry(16, 9, 'e', 'wind', 'Scratched Armor'),
+    MakeEntry(16, 10, 'e', 'wind', 'High Potion'),
+    MakeEntry(16, 11, 'e', 'wind', 'Shabby Circuit'),
+    MakeEntry(16, 12, 'e', 'wind', 'Ether'),
+    MakeEntry(16, 13, 'e', 'wind', 'Pyrite'),
+    MakeEntry(16, 14, 'e', 'wind', 'Mid Potion'),
+    MakeEntry(16, 15, 'd', 'wind', 'Mandragora'),
+    MakeEntry(16, 16, 'd', 'wind', 'Enchanted Robe'),
+    MakeEntry(16, 17, 'c', 'water', 'Mid Tonic'),
+    MakeEntry(16, 18, 'c', 'water', 'Body Supplement'),
+    MakeEntry(16, 20, 'b', 'water', 'Typhoon Stone'),
+    MakeEntry(19, 20, 'b', 'dark', 'Panacea Herb'),
+    MakeEntry(7, 13, 'b', 'earth', 'Max Tonic'),
+    MakeEntry(17, 1, 'b', 'ice', 'Light Ball'),
+    MakeEntry(17, 4, 'c', 'light', 'Iron Armor'),
+    MakeEntry(17, 5, 'd', 'light', 'Ultra Potion'),
+    MakeEntry(17, 6, 'e', 'ice', 'Carapace Shards'),
+    MakeEntry(17, 7, 'e', 'wind', 'Sparse Moss'),
+    MakeEntry(17, 8, 'e', 'wind', 'Hidden Village 1', 'location'),
+    MakeEntry(17, 9, 'e', 'wind', 'High Tonic'),
+    MakeEntry(17, 10, 'e', 'wind', 'Rusted Gear'),
+    MakeEntry(17, 11, 'e', 'wind', 'Panacea'),
+    MakeEntry(17, 12, 'e', 'wind', 'Scuffed Shell'),
+    MakeEntry(17, 13, 'e', 'wind', 'Dewdrop Flask'),
+    MakeEntry(17, 14, 'd', 'dark', 'Elixir'),
+    MakeEntry(17, 15, 'd', 'dark', 'Evil Bird Mask'),
+    MakeEntry(17, 16, 'd', 'wind', 'Bravery Fragment EG'),
+    MakeEntry(17, 17, 'c', 'water', 'Pretty Shell'),
+    MakeEntry(17, 18, 'c', 'water', 'Herb'),
+    MakeEntry(18, 18, 'c', 'water', 'Pretty Moss'),
+    MakeEntry(18, 17, 'c', 'wind', 'Herb'),
+    MakeEntry(18, 16, 'd', 'wind', 'Dewdrop Flask'),
+    MakeEntry(18, 15, 'd', 'dark', 'Night Stone'),
+    MakeEntry(18, 14, 'd', 'dark', 'Paralysis Stinger'),
+    MakeEntry(18, 13, 'd', 'dark', 'Bulletproof Skirt'),
+    MakeEntry(18, 12, 'e', 'wind', 'Dewdrop Synthesis Recipe'),
+    MakeEntry(18, 11, 'e', 'wind', 'Withered Flower'),
+    MakeEntry(18, 10, 'e', 'lightning', 'Wisdom Fragment EE'),
+    MakeEntry(18, 9, 'e', 'lightning', 'Potion'),
+    MakeEntry(18, 8, 'e', 'wind', "Giant's Shoes"),
+    MakeEntry(18, 7, 'd', 'ice', 'Protective Fragment EF'),
+    MakeEntry(18, 6, 'd', 'ice', 'Heavy Leather Armor'),
+    MakeEntry(18, 5, 'd', 'light', 'Shimmering Stone'),
+    MakeEntry(18, 4, 'c', 'light', 'Sun Blossom'),
+    MakeEntry(19, 5, 'c', 'light', 'Shimmering Stone'),
+    MakeEntry(19, 6, 'c', 'ice', 'Glacial Stone'),
+    MakeEntry(19, 7, 'd', 'ice', 'Pure White Feather'),
+    MakeEntry(19, 8, 'd', 'lightning', 'Mid Tonic'),
+    MakeEntry(19, 9, 'd', 'lightning', 'High Tonic'),
+    MakeEntry(19, 10, 'd', 'lightning', 'Burned Muzzle'),
+    MakeEntry(19, 11, 'd', 'lightning', 'Mage Robe'),
+    MakeEntry(19, 12, 'd', 'wind', 'Lightning Stone'),
+    MakeEntry(19, 13, 'd', 'dark', 'Panacea'),
+    MakeEntry(19, 14, 'd', 'dark', 'Trust Fragment EF'),
+    MakeEntry(19, 15, 'd', 'wind', 'Sturdy Dress'),
+    MakeEntry(19, 16, 'd', 'wind', 'Broken Beak'),
+    MakeEntry(19, 17, 'c', 'wind', 'Max Tonic'),
+    MakeEntry(19, 18, 'c', 'wind', 'White Robe'),
+    MakeEntry(20, 18, 'c', 'light', 'Dewdrop Flask'),
+    MakeEntry(20, 17, 'c', 'wind', 'Herb'),
+    MakeEntry(20, 16, 'd', 'ice', 'Wisdom Fragment EG'),
+    MakeEntry(20, 15, 'd', 'ice', 'Shoe Recipe'),
+    MakeEntry(20, 14, 'd', 'ice', 'Suspicious Matatabi'),
+    MakeEntry(20, 13, 'd', 'ice', 'Purified Ash'),
+    MakeEntry(20, 12, 'c', 'ice', 'Dewdrop Flask'),
+    MakeEntry(20, 11, 'c', 'ice', 'Ultra Potion'),
+    MakeEntry(20, 10, 'c', 'lightning', 'Pebble'),
+    MakeEntry(20, 9, 'c', 'lightning', 'Mid Potion'),
+    MakeEntry(20, 8, 'c', 'ice', 'Elixir'),
+    MakeEntry(20, 7, 'c', 'ice', 'Elixir'),
+    MakeEntry(20, 6, 'c', 'ice', 'Beautiful Scale'),
+    MakeEntry(21, 12, 'c', 'ice', 'High Ether'),
+    MakeEntry(21, 13, 'd', 'ice', 'Wisdom Fragment EF'),
+    MakeEntry(21, 14, 'd', 'ice', 'Proof of Memberhsip'),
+    MakeEntry(21, 15, 'd', 'ice', 'Dewdrop Flask'),
+    MakeEntry(21, 16, 'c', 'light', 'Sun Blossom'),
+    MakeEntry(21, 17, 'c', 'light', 'Dewdrop Flask'),
+    MakeEntry(21, 18, 'c', 'light', 'Sharp Fang'),
+    MakeEntry(22, 16, 'c', 'light', 'Bright Shimmering Stone'),
+    MakeEntry(22, 14, 'c', 'ice', 'Ultra Potion'),
+    MakeEntry(22, 13, 'c', 'ice', 'Pyrite'),
+    MakeEntry(22, 12, 'c', 'ice', 'Bone Fragments'),
+    MakeEntry(17, 20, 'b', 'water', 'Trust Fragment DF'),
+    MakeEntry(5, 13, 'b', 'earth', 'Iron Ore'),
+    MakeEntry(18, 20, 'b', 'water', 'Dewdrop of Salvation'),
+    MakeEntry(11, 16, 'd', 'light', 'Bravery Fragment EF'),
+    MakeEntry(12, 16, 'd', 'light', 'Shimmering Stone'),
+    MakeEntry(22, 15, 'c', 'light', 'Dark Protection Medicine'),
+    MakeEntry(18, 19, 'b', 'water', 'Night Blossom'),
+    MakeEntry(16, 2, 'b', 'wind', 'Herb'),
+    MakeEntry(7, 15, 'b', 'dark', 'Dewdrop Flask'),
+    MakeEntry(15, 2, 'b', 'wind', 'Hurricane Stone'),
+    MakeEntry(19, 19, 'b', 'dark', 'Midnight Stone'),
+    MakeEntry(17, 19, 'b', 'water', 'High-End CPU'),
+    MakeEntry(17, 21, 'b', 'water', 'Amulet Recipe 1'),
+    MakeEntry(15, 1, 'b', 'wind', "Assassin's Gloves", 'requires map', 'Requires Treasure Map G'),
+    MakeEntry(8, 14, 'b', 'earth', 'Water Protection Medicine'),
+    MakeEntry(16, 19, 'b', 'water', 'Protective Fragment DF'),
+    MakeEntry(10, 14, 'd', 'light', 'Force Ring', 'requires map', 'Requires Tresure Map B'),
+    MakeEntry(17, 2, 'b', 'ice', 'Moon Blossom'),
+    MakeEntry(18, 21, 'b', 'water', 'Fire Protection Medicine'),
+    MakeEntry(15, 19, 'b', 'water', 'Special Glass Plate'),
+    MakeEntry(16, 3, 'b', 'wind', 'Vital Potion'),
+    MakeEntry(15, 20, 'b', 'water', 'Magic Potion'),
+    MakeEntry(12, 6, 'c', 'light', 'Shimmering Stone'),
+    MakeEntry(9, 2, 'b', 'dark', 'Midnight Stone'),
+    MakeEntry(9, 3, 'b', 'light', 'Shimmering Stone'),
+    MakeEntry(10, 2, 'b', 'wind', 'Hurricane Stone'),
+    MakeEntry(9, 1, 'b', 'dark', 'Moon Blossom'),
+    MakeEntry(10, 3, 'b', 'light', 'Wisdom Fragment DG'),
+    MakeEntry(16, 1, 'b', 'ice', 'Amulet Recipe 3'),
+    MakeEntry(8, 15, 'b', 'earth', 'High Ether'),
+    MakeEntry(16, 21, 'b', 'water', 'Super Powerful Lightning Ball'),
+    MakeEntry(7, 14, 'b', 'dark', 'Sun Blossom'),
+    MakeEntry(6, 13, 'b', 'earth', 'Mudslide Spirit Stone'),
+    MakeEntry(12, 15, 'd', 'light', 'Wisdom Fragment EG'),
+    MakeEntry(15, 21, 'b', 'water', 'Lovely Fragment DF'),
+    MakeEntry(6, 14, 'b', 'dark', 'Night Blossom'),
+    MakeEntry(14, 21, 'b', 'water', 'Night Blossom'),
+    MakeEntry(6, 15, 'b', 'dark', 'Night Stone'),
+    MakeEntry(14, 22, 'b', 'water', 'Dark Protection Medicine'),
+    MakeEntry(12, 14, 'e', 'light', 'High Potion'),
+    MakeEntry(14, 23, 'b', 'water', 'Maelstrom Stone'),
+    MakeEntry(11, 14, 'e', 'light', 'Wild Strawberry'),
+    MakeEntry(7, 16, 'b', 'dark', 'Power Potion'),
+    MakeEntry(11, 2, 'b', 'wind', 'Dewdrop of Salvation'),
+    MakeEntry(2, 10, 'b', 'lightning', 'Night Blossom'),
+    MakeEntry(10, 4, 'b', 'light', 'Earth Protection Medicine'),
+    MakeEntry(6, 12, 'b', 'earth', 'Sun Blossom'),
+    MakeEntry(15, 24, 'b', 'water', 'High Potion'),
+    MakeEntry(18, 2, 'b', 'ice', 'Elixir'),
+    MakeEntry(17, 3, 'b', 'light', 'Herb'),
+    MakeEntry(8, 16, 'b', 'dark', 'Sun Blossom'),
+    MakeEntry(2, 11, 'b', 'lightning', 'Ultra Potion'),
+    MakeEntry(15, 23, 'b', 'water', 'Typhoon Stone'),
+    MakeEntry(14, 24, 'b', 'water', 'Undine', 'requires map,fairy', 'Requires Treasure Map E'),
+    MakeEntry(14, 25, 'b', 'water', 'Mudslide Spirit Stone'),
+    MakeEntry(19, 21, 'b', 'dark', "Cherub's Feathers"),
+    MakeEntry(20, 20, 'b', 'light', 'Protective Fragment DG'),
+    MakeEntry(5, 14, 'b', 'earth', "Chrub's Feathers"),
+    MakeEntry(15, 25, 'b', 'water', 'Light Protection Medicine'),
+    MakeEntry(20, 19, 'b', 'light', 'Dewdrop Bottle'),
+    MakeEntry(8, 13, 'b', 'earth', 'Moon Blossom'),
+    MakeEntry(14, 26, 'b', 'water', 'Wisdom Fragment DF'),
+    MakeEntry(8, 17, 'b', 'dark', 'Herb'),
+    MakeEntry(13, 26, 'b', 'water', 'Herb'),
+    MakeEntry(21, 19, 'b', 'light', 'Ultra Potion'),
+    MakeEntry(12, 26, 'b', 'water', 'Ultra Potion'),
+    MakeEntry(18, 3, 'b', 'light', 'Copper Ore'),
+    MakeEntry(19, 3, 'b', 'ice', 'Copper Ore'),
+    MakeEntry(19, 4, 'c', 'light', 'Audio Output Circuit'),
+    MakeEntry(20, 4, 'b', 'ice', 'Glacial Stone'),
+    MakeEntry(11, 3, 'b', 'wind', 'Red Dragon Stone'),
+    MakeEntry(11, 1, 'b', 'wind', 'Elixir'),
+    MakeEntry(11, 4, 'b', 'light', 'Herb'),
+    MakeEntry(12, 2, 'b', 'wind', 'Sludge Ball'),
+    MakeEntry(12, 3, 'b', 'wind', 'Elixir'),
+    MakeEntry(12, 1, 'b', 'wind', 'Dewdrop Bottle'),
+    MakeEntry(7, 12, 'b', 'earth', 'Amulet Recipe 2'),
+    MakeEntry(11, 0, 'b', 'light', 'Brilliant Shimmering Stone'),
+    MakeEntry(13, 2, 'b', 'wind', 'Ultra Potion'),
+    MakeEntry(8, 12, 'b', 'earth', 'Lightning Protection Medicine'),
+    MakeEntry(18, 1, 'b', 'ice', 'Hidden Village 6', 'location'),
+    MakeEntry(15, 3, 'b', 'lightning', 'Cloudburst Stone'),
+    MakeEntry(3, 11, 'b', 'lightning', 'Sharp Beak'),
+    MakeEntry(7, 17, 'b', 'earth', 'Rumble Stone'),
+    MakeEntry(17, 0, 'b', 'light', 'Brilliant Shimmering Stone'),
+    MakeEntry(16, 0, 'b', 'light', 'Bravery Fragment DF'),
+    MakeEntry(10, 0, 'b', 'light', 'Friendship Fragment N'),
+    MakeEntry(14, 2, 'b', 'lightning', 'Iron Ore'),
+    MakeEntry(14, 3, 'b', 'lightning', 'Dewdrop Flask'),
+    MakeEntry(15, 0, 'b', 'light', 'Explosive Ball'),
+    MakeEntry(22, 18, 'b', 'light', 'Pyrite'),
+    MakeEntry(14, 1, 'b', 'wind', 'Hard Eyeball'),
+    MakeEntry(13, 1, 'b', 'wind', 'High Ether'),
+    MakeEntry(14, 0, 'b', 'light', 'High Ether'),
+    MakeEntry(13, 3, 'b', 'lightning', 'Copper Ore'),
+    MakeEntry(12, 4, 'b', 'light', 'Brilliant Shimmering Stone'),
+    MakeEntry(13, 0, 'b', 'light', 'Panacea Herb'),
+    MakeEntry(12, 0, 'b', 'light', 'Imperial Dragon Scales'),
+    MakeEntry(8, 21, 'b', 'wind', 'Protective Fragment DG'),
+    MakeEntry(7, 21, 'b', 'wind', 'Wind Stone'),
+    MakeEntry(3, 7, 'c', 'lightning', 'Dragon Ring', 'requires map', 'Requires Treasure Map C'),
+    MakeEntry(2, 12, 'b', 'lightning', 'Wildfire Spirit Stone'),
+    MakeEntry(5, 12, 'b', 'earth', 'Big Red Dragon Stone'),
+    MakeEntry(8, 22, 'b', 'wind', 'Super Powerful Explosive Ball'),
+    MakeEntry(22, 17, 'b', 'light', 'JS Membership Card'),
+    MakeEntry(20, 5, 'b', 'ice', 'Lovely Fragment DF'),
+    MakeEntry(21, 5, 'b', 'ice', "Cherub's Feathers"),
+    MakeEntry(21, 6, 'b', 'ice', 'Ice Protection Medicine'),
+    MakeEntry(12, 5, 'b', 'light', 'Max Tonic'),
+    MakeEntry(11, 5, 'b', 'light', 'Protective Fragment DF'),
+    MakeEntry(4, 12, 'b', 'earth', 'Quake Stone'),
+    MakeEntry(8, 20, 'b', 'wind', 'Dewdrop Bottle'),
+    MakeEntry(7, 20, 'b', 'wind', 'Elixir'),
+    MakeEntry(7, 22, 'b', 'wind', 'Mithril Stone'),
+    MakeEntry(7, 19, 'b', 'earth', 'Copper Ore'),
+    MakeEntry(7, 18, 'b', 'earth', 'Moon Blossom'),
+    MakeEntry(3, 9, 'b', 'lightning', 'Panacea'),
+    MakeEntry(9, 21, 'b', 'wind', 'Pretty Feather'),
+    MakeEntry(3, 10, 'b', 'lightning', 'Wisdom Fragment DF'),
+    MakeEntry(21, 7, 'b', 'ice', 'Absolute Zero Stone'),
+    MakeEntry(21, 8, 'b', 'ice', 'Dewdrop Flask'),
+    MakeEntry(21, 9, 'b', 'ice', 'Ice Stone'),
+    MakeEntry(15, 26, 'b', 'water', 'Sun Blossom'),
+    MakeEntry(2, 9, 'b', 'lightning', 'Darkness Ball'),
+    MakeEntry(21, 10, 'b', 'ice', 'Bravery Fragment DG'),
+    MakeEntry(9, 22, 'b', 'wind', 'Panacea Herb'),
+    MakeEntry(8, 23, 'b', 'wind', 'Gale Stone'),
+    MakeEntry(9, 23, 'b', 'wind', 'Panacea Herb'),
+    MakeEntry(21, 11, 'b', 'ice', 'Glacial Stone'),
+    MakeEntry(8, 24, 'b', 'wind', 'Strong Horn'),
+    MakeEntry(9, 24, 'b', 'wind', 'Protective Fragment DG'),
+    MakeEntry(4, 13, 'b', 'earth', 'Sun Blossom'),
+    MakeEntry(3, 12, 'b', 'lightning', "Cherub's Feathers"),
+    MakeEntry(11, 26, 'b', 'wind', 'Gale Stone'),
+    MakeEntry(10, 26, 'b', 'ice', 'Absolute Zero Stone'),
+    MakeEntry(9, 25, 'b', 'fire', 'Lightning Ball'),
+    MakeEntry(8, 18, 'b', 'earth', 'Smoke Bomb'),
+    MakeEntry(8, 19, 'b', 'earth', 'Panacea Herb'),
+    MakeEntry(10, 5, 'b', 'light', 'Elixir'),
+    MakeEntry(3, 13, 'b', 'lightning', 'Leader Broach', 'requires map', 'Requires Treasure Map D'),
+    MakeEntry(2, 13, 'b', 'lightning', 'Bravery Fragment DG'),
+    MakeEntry(1, 10, 'b', 'lightning', 'Wind Protection Medicine'),
+    MakeEntry(1, 9, 'b', 'lightning', 'Iron Ore'),
+    MakeEntry(0, 9, 'b', 'lightning', 'Trust Fragment N'),
+    MakeEntry(8, 25, 'b', 'fire', 'Yura', 'requires map,fairy', 'Requires Treasure Map I'),
+    MakeEntry(22, 11, 'b', 'ice', 'Max Tonic'),
+    MakeEntry(16, 23, 'a', 'water', 'Dragon Scale'),
+    MakeEntry(5, 21, 'a', 'wind', 'Potent Herb'),
+    MakeEntry(16, 22, 'a', 'water', 'Pretty Moss'),
+    MakeEntry(5, 20, 'a', 'wind', 'Max Tonic'),
+    MakeEntry(15, 22, 'a', 'water', 'Eagle Beak'),
+    MakeEntry(4, 20, 'a', 'wind', 'Gale Stone'),
+    MakeEntry(4, 19, 'a', 'earth', 'Trust Fragment DG'),
+    MakeEntry(17, 22, 'a', 'water', 'Water Protection Medicine'),
+    MakeEntry(3, 18, 'a', 'lightning', 'Iron Ore'),
+    MakeEntry(3, 19, 'a', 'earth', 'Rare Orichalcum'),
+    MakeEntry(17, 23, 'a', 'water', 'Earth Protection Medicine'),
+    MakeEntry(5, 19, 'a', 'wind', 'Light Protection Medicine'),
+    MakeEntry(19, 1, 'a', 'ice', 'Mottled Fur'),
+    MakeEntry(18, 0, 'a', 'light', 'Lightning Protection Medicine'),
+    MakeEntry(4, 21, 'a', 'wind', 'Silver Ore'),
+    MakeEntry(3, 20, 'a', 'wind', 'Evil Ashes'),
+    MakeEntry(19, 0, 'a', 'light', 'Fahn', 'requires map,fairy', 'Requires Treasure Map K'),
+    MakeEntry(20, 2, 'a', 'ice', 'Idol Medicine'),
+    MakeEntry(19, 2, 'a', 'ice', 'Gold Ore'),
+    MakeEntry(20, 3, 'a', 'ice', 'Max Tonic'),
+    MakeEntry(4, 18, 'a', 'earth', 'Potent Panacea Herb'),
+    MakeEntry(4, 17, 'a', 'earth', 'Leather Barrel'),
+    MakeEntry(3, 17, 'a', 'lightning', 'Transformation Medicine'),
+    MakeEntry(5, 18, 'a', 'earth', 'Dragon Fang'),
+    MakeEntry(16, 24, 'a', 'water', 'Ultra Ether'),
+    MakeEntry(17, 24, 'a', 'water', 'Hidden Village 7', 'location'),
+    MakeEntry(21, 3, 'a', 'ice', 'High Power Engine'),
+    MakeEntry(21, 4, 'a', 'ice', 'Potent Herb'),
+    MakeEntry(6, 19, 'a', 'earth', 'Pretty Moss'),
+    MakeEntry(6, 20, 'a', 'wind', 'Mysterious Mask'),
+    MakeEntry(6, 21, 'a', 'wind', 'Hurricane Stone'),
+    MakeEntry(6, 18, 'a', 'earth', 'Dewdrop of Salvation'),
+    MakeEntry(18, 23, 'a', 'water', 'Baby Dragon Skin'),
+    MakeEntry(18, 22, 'a', 'water', 'Maelstrom Stone'),
+    MakeEntry(19, 22, 'a', 'dark', 'Potent Panacea Herb'),
+    MakeEntry(5, 22, 'a', 'wind', 'Death Sickle'),
+    MakeEntry(19, 23, 'a', 'dark', 'Midnight Stone'),
+    MakeEntry(17, 25, 'a', 'water', 'Elixir'),
+    MakeEntry(16, 25, 'a', 'water', 'Light Protection Medicine'),
+    MakeEntry(7, 8, 'a', 'fire', 'Protective Fragment N'),
+    MakeEntry(16, 26, 'a', 'water', 'Evil Ice Core'),
+    MakeEntry(17, 26, 'a', 'dark', 'Dohn', 'requires map,fairy', 'Requires Treasure Map L'),
+    MakeEntry(4, 22, 'a', 'wind', 'Potent Herb'),
+    MakeEntry(5, 17, 'a', 'earth', 'Silver Ore'),
+    MakeEntry(6, 17, 'a', 'earth', 'Glittery Feather'),
+    MakeEntry(2, 17, 'a', 'lightning', 'Evil Earth Core'),
+    MakeEntry(3, 16, 'a', 'lightning', "Demon Beast's Claw"),
+    MakeEntry(22, 4, 'a', 'ice', 'Elixir'),
+    MakeEntry(22, 3, 'a', 'ice', 'Wind Protection Medicine'),
+    MakeEntry(22, 5, 'a', 'ice', 'Ultra Ether'),
+    MakeEntry(6, 22, 'a', 'wind', 'Herb'),
+    MakeEntry(5, 23, 'a', 'wind', 'Firestorm Spirit Stone'),
+    MakeEntry(6, 23, 'a', 'wind', 'Ice Protection Medicine'),
+    MakeEntry(4, 16, 'a', 'earth', 'Regal Armor', 'requires map', 'Requires Treasure Map H'),
+    MakeEntry(5, 16, 'a', 'earth', 'Lovely Fragment CE'),
+    MakeEntry(6, 16, 'a', 'earth', 'Super Powerful Explosive Ball'),
+    MakeEntry(5, 15, 'a', 'earth', 'Chunk of Magic'),
+    MakeEntry(4, 15, 'a', 'earth', 'Fire Protection Medicine'),
+    MakeEntry(3, 15, 'a', 'lightning', 'Voltremor Spirit Stone'),
+    MakeEntry(4, 14, 'a', 'earth', 'Ultra Ether'),
+    MakeEntry(3, 21, 'a', 'wind', 'Blizzard Spirit Stone'),
+    MakeEntry(2, 18, 'a', 'earth', 'Earth Protection Stone'),
+    MakeEntry(2, 19, 'a', 'earth', 'Potent Panacea Herb'),
+    MakeEntry(2, 16, 'a', 'lightning', 'Dark Protection Medicine'),
+    MakeEntry(3, 14, 'a', 'lightning', 'Wisdom Fragment CE'),
+    MakeEntry(2, 15, 'a', 'lightning', 'Cloudburst Stone'),
+    MakeEntry(2, 14, 'a', 'lightning', 'Evil Bird Feather'),
+    MakeEntry(22, 6, 'a', 'ice', 'Ultra Powered Circuit'),
+    MakeEntry(7, 23, 'a', 'wind', 'Firestorm Spirit Stone'),
+    MakeEntry(7, 24, 'a', 'wind', 'Glittery Wing'),
+    MakeEntry(6, 24, 'a', 'fire', "Great Sage's Robe", 'requires map', 'Requires Treasure Map F'),
+    MakeEntry(7, 25, 'a', 'fire', 'Lightning Protection Medicine'),
+    MakeEntry(22, 7, 'a', 'ice', 'Super Powerful Lightning Ball'),
+    MakeEntry(1, 15, 'a', 'lightning', 'Deadly Poison Stinger'),
+    MakeEntry(1, 16, 'a', 'lightning', 'Dewdrop of Salvation'),
+    MakeEntry(22, 8, 'a', 'ice', 'Slush Spirit Stone'),
+    MakeEntry(1, 14, 'a', 'lightning', 'Wildfire Spirit Stone'),
+    MakeEntry(22, 9, 'a', 'ice', 'Lovely Soul'),
+    MakeEntry(22, 10, 'a', 'ice', 'Absolute Zero Stone'),
+    MakeEntry(1, 13, 'a', 'lightning', 'Elixir'),
+    MakeEntry(0, 13, 'a', 'lightning', 'Silver Ore'),
+    MakeEntry(0, 12, 'a', 'lightning', 'Hopeful Fragment CE'),
+    MakeEntry(1, 12, 'a', 'lightning', 'Huge Beak'),
+    MakeEntry(1, 11, 'a', 'lightning', 'Ultra Potion'),
+    MakeEntry(0, 11, 'a', 'lightning', 'Ice Beak'),
+    MakeEntry(0, 10, 'a', 'lightning', 'Regal Gauntlets', 'requires map', 'Requires Treasure Map J'),
+    MakeEntry(18, 25, 's', 'water', 'Piece of Flying Stone'),
+    MakeEntry(18, 24, 's', 'water', 'Amulet of Wind'),
+    MakeEntry(19, 25, 's', 'dark', 'OOPArt - Crystal Skull'),
+    MakeEntry(1, 17, 's', 'lightning', 'Moon Blossom'),
+    MakeEntry(0, 17, 's', 'lightning', 'Hidden Village 8', 'location'),
+    MakeEntry(0, 16, 's', 'lightning', "Komei's Clothes"),
+    MakeEntry(0, 15, 's', 'lightning', 'Sun Blossom'),
+    MakeEntry(0, 14, 's', 'lightning', 'Beautiful Blue Jewel'),
+    MakeEntry(1, 18, 's', 'lightning', 'Amulet of Ice'),
+    MakeEntry(1, 19, 's', 'earth', 'Suspicious Matatabi'),
+    MakeEntry(2, 20, 's', 'earth', 'Night Blossom'),
+    MakeEntry(2, 21, 's', 'earth', 'Amulet of Earth'),
+    MakeEntry(3, 22, 's', 'wind', "Valkyrie's Armor", 'requires map', 'Requires Treasure Man N'),
+    MakeEntry(4, 23, 's', 'fire', 'Rainbow Shell'),
+    MakeEntry(5, 24, 's', 'fire', 'Beautiful Blue Jewel'),
+    MakeEntry(6, 25, 's', 'fire', 'Amulet of Dark'),
+    MakeEntry(19, 24, 's', 'dark', 'OOPArt - Spaceship'),
+    MakeEntry(18, 26, 's', 'dark', 'Amulet of Water'),
+    MakeEntry(19, 26, 's', 'dark', 'OOPArt - Lithograph'),
+    MakeEntry(21, 1, 's', 'light', 'Piece of Flying Stone'),
+    MakeEntry(21, 2, 's', 'ice', "Overlord's Armor", 'requires map', 'Requires Treasure Map M'),
+    MakeEntry(22, 2, 's', 'light', 'Amulet of Lightning'),
+    MakeEntry(20, 1, 's', 'light', 'Amulet of Fire'),
+    MakeEntry(20, 0, 's', 'light', 'Amulet of Light'),
+    MakeEntry(21, 0, 's', 'light', 'Hidden Village 9', 'location'),
+    MakeEntry(12, 11, 's', 'wind', 'Amazonite'),
+  ];
+
+  const QuickLookup = (function() {
+    let lookup = new Map();
+    data.forEach(function(entry) {
+      if (!lookup.has(entry.x)) {
+        lookup.set(entry.x, new Map());
+      }
+      lookup.get(entry.x).set(entry.y, entry);
+    });
+
+    return function(x, y) {
+      if (!lookup.has(x)) {
+        return null;
+      }
+      if (!lookup.get(x).has(y)) {
+        return null;
+      }
+      return lookup.get(x).get(y);
+    }
+  })();
+
+  function make_converter(info_box, box_size, box_spacing) {
+    let last = null;
+    return function(event) {
+      let bound = this.getBoundingClientRect();
+      let pixel_x = event.clientX - bound.left;
+      let pixel_y = event.clientY - bound.top;
+      let box_x = Math.floor(pixel_x / (box_size + box_spacing));
+      let box_y = Math.floor(pixel_y / (box_size + box_spacing));
+
+      if (box_x + " " + box_y == last) { return; }
+      let entry = QuickLookup(box_x, box_y);
+      if (entry === null) { return; }
+      last = box_x + " " + box_y;
+
+      fill_info_box(info_box, entry);
+
+    };
+  }
+
+  function matches_highlight(entry, highlight) {
+    if (highlight === null || highlight === undefined) { return false; }
+    if (entry.tags.has(highlight)) {
+      return true;
+    }
+    if (highlight.startsWith('rank_') && highlight.substring(5).toUpperCase() == entry.rank) {
+      return true;
+    }
+    if (highlight == entry.item) {
+      return true;
+    }
+
+    return false;
+  }
+
+  function drawMap(canvas_container, box_size, box_spacing, data, highlight) {
+    let canvas = document.createElement('canvas');
+    console.log("Drawing Map");
+    if (highlight == "none") { highlight = null; }
+    canvas.width = (box_size + box_spacing) * map_width_in_squares + box_spacing;
+    canvas.height = (box_size + box_spacing) * map_height_in_squares + box_spacing;
+    canvas.onmousemove = make_converter(document.getElementById('info-box'), box_size, box_spacing);
+
+    let ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#ddd';
+
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    let box_coord = function(x, y) { return [box_spacing + x * (box_size + box_spacing),
+                                             box_spacing + y * (box_size + box_spacing)]; }
+
+    let draw_box = function(entry) {
+      let tmp = ctx.fillStyle; 
+      let box_ul = box_coord(entry.x, entry.y);
+      ctx.fillStyle = color_by_element.get(entry.element);
+      ctx.fillRect(box_ul[0], box_ul[1], box_size, box_size);
+      if (highlight) {
+        if (!matches_highlight(entry, highlight)) {
+          ctx.fillStyle = highlight_color;
+          ctx.fillRect(box_ul[0], box_ul[1], box_size, box_size);
+        } else {
+          ctx.fillStyle = highlight_outline;
+          // Top
+          ctx.fillRect(box_ul[0] - box_spacing, box_ul[1] - box_spacing, box_size + 2 * box_spacing, box_spacing);
+          // Left
+          ctx.fillRect(box_ul[0] - box_spacing, box_ul[1] - box_spacing, box_spacing, box_size +2 * box_spacing);
+          // Right
+          ctx.fillRect(box_ul[0] + box_size, box_ul[1] - box_spacing, box_spacing, box_size + 2 * box_spacing);
+          // bottom
+          ctx.fillRect(box_ul[0] - box_spacing, box_ul[1] + box_size, box_size + 2 * box_spacing, box_spacing);
+        }
+      }
+      ctx.fillStyle = tmp;
+      if (entry.item.toUpperCase() == "TBD") {
+        tmp = ctx.strokeStyle;
+        ctx.strokeStyle = (entry.element == 'fire' ? 'white' : ex_color);
+        ctx.beginPath();
+        ctx.moveTo(box_ul[0], box_ul[1]);
+        ctx.lineTo(box_ul[0] + box_size, box_ul[1] + box_size);
+        ctx.moveTo(box_ul[0] + box_size, box_ul[1]);
+        ctx.lineTo(box_ul[0], box_ul[1] + box_size);
+        ctx.stroke();
+        ctx.strokeStyle = tmp;
+      }
+    };
+
+
+    data.forEach(function(entry) {
+      draw_box(entry);
+    });
+    canvas_container.replaceChildren(canvas);
+  }
+
+  function check_data(data) {
+    let seen = new Set();
+    data.forEach(function(entry) {
+      let coord = entry.x + "," + entry.y;
+      console.assert(!seen.has(coord), "Duplicate coordinate: " + coord);
+      seen.add(coord);
+    });
+  }
+
+  function fill_info_box(parent, entry) {
+    let divvy = document.createElement("div");
+    let lines = [];
+    lines.push("<strong>(" + entry.x + ", " + entry.y + ")</strong>");
+    lines.push("<strong>Rank:</strong> " + entry.rank);
+    let el = entry.element;
+    lines.push("<strong>Element:</strong> " +
+               "<span style='padding: 2px; color: " + color_by_element.get(el) +
+               "; background: " + element_backgrounds.get(el)  + "'>" + el + "</span>");
+    lines.push("<strong>Discovery:</strong> " + entry.item);
+    if (entry.tags.size > 0) {
+      lines.push("<strong>Tags:</strong> " + entry.tags.values().toArray().join(" ● "));
+    }
+    if (entry.notes != "") {
+      lines.push("<strong>Notes:</strong> " + entry.notes);
+    }
+    lines.push("<!--" + JSON.stringify(entry) + " -->");
+    divvy.innerHTML = lines.join("<br>");
+    parent.replaceChildren(divvy); 
+  }
+
+  function get_highlight_options(data) {
+    let tags = new Set();
+    data.forEach(function(entry) {
+      entry.tags.forEach(function(tag) {
+        tags.add(tag);
+      });
+    });
+
+    let ret = ['none'];
+    legal_ranks.forEach(function(rank) {
+      ret.push('rank_' + rank);
+    });
+    tags.forEach(function(tag) {
+      ret.push(tag);
+    });
+
+    return ret;
+  }
+
+  function make_tag_list(parent, tags, redraw_func) {
+    tags.forEach(function(tag) {
+      let t = "" + tag;
+      let s = document.createElement('span');
+      s.classList.add('highlight-option');
+      s.innerHTML = t;
+      s.onclick = function() { redraw_func(t); };
+      parent.append(s);
+      parent.append(document.createElement('br'));
+    });    
+  }
+
+  function add_highlight_buttons(parent, tags, items, redraw_func) {
+    let dv = document.createElement('div');
+    let h = document.createElement('h3');
+    h.innerHTML = "Highlight:"
+    dv.append(h);
+    let flexer = document.createElement('div');
+    dv.append(flexer);
+    flexer.style = 'display: flex';
+
+    [tags, items].forEach(function(lst) {
+      let tag_box = document.createElement('div');
+      tag_box.style = 'margin: 5px; max-height: 20rlh; overflow: scroll';
+      flexer.append(tag_box);
+      make_tag_list(tag_box, lst, redraw_func);
+    })
+    
+    parent.replaceChildren(dv);
+  }
+
+  function unique_item_names(data) {
+    let skippable_tags = new Set('fairy', 'location');
+    let d = new Set();
+    data.forEach(function(entry) {
+      if (!entry.tags.isDisjointFrom(skippable_tags)) {
+        return; 
+      }
+      if (entry.item.toUpperCase() == 'TBD') { return; }
+      d.add(entry.item);
+    });
+    return d.values().toArray().sort();
+  }
+
+  $(function() {
+    check_data(data);
+    let canvas_container = document.getElementById('canvas-container');
+    let redraw = function(highlight) {
+      drawMap(canvas_container, 22, 3, data, highlight);
+    };
+    add_highlight_buttons(document.getElementById('highlights'),
+                          get_highlight_options(data),
+                          unique_item_names(data),
+                          redraw);
+    redraw(null);
+  });
+
+ </script>
+ <style>
+  body {
+    margin: 2px;
+  }
+  #flexer > div {
+    margin-left: 5px;
+    margin-right: 10px;
+    margin-top: 2px;
+    margin-bottom: 0;
+  }
+  .highlight-option {
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .highlight-option:hover {
+    text-decoration: none;
+  }
+ </style>
+</head>
+<body>
+ <div id='flexer' style='display:flex'>
+   <div id='canvas-container'></div>
+   <div id='sidebar'>
+    <div id='info-box' style='height: 6rlh'></div>
+    <div id='highlights'></div>
+   </div>
+ </div>
+</body>
